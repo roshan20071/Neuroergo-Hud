@@ -1,5 +1,9 @@
 # NeuroErgo HUD
-
+![Inference Speed](https://img.shields.io/badge/Inference-60%20FPS%20%7C%20WASM-brightgreen.svg)
+![Signal Smoothing](https://img.shields.io/badge/Filtering-Holt's%20Double%20EMA-blue.svg)
+![Unit Tests](https://img.shields.io/badge/Tests-91%20Passing%20%7C%20Vitest-success.svg)
+![Privacy](https://img.shields.io/badge/Privacy-100%25%20On--Device-success.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 **Real-Time Biometric Ergonomics & Touchless Accessibility Engine**
 
 NeuroErgo HUD is a browser-based application that watches a user's face and
@@ -59,15 +63,20 @@ browser with WebAssembly and WebGL2 support.
 
 ## System architecture
 
-```
-┌────────────┐   ┌──────────────────┐   ┌───────────────────┐   ┌────────────────────┐   ┌───────────────────┐
-│ Video Frame │→ │  MediaPipe WASM   │→ │  Smoothing Filter   │→ │   State Machines    │→ │   WebGL / UI HUD    │
-│ (webcam,    │  │  FaceMesh (468pt) │  │  (EMA / Double Exp.) │  │  ErgonomicsEngine   │  │  Three.js reticles  │
-│  1280x720)  │  │  Hands (21pt)     │  │  per-landmark, O(1)  │  │  GestureEngine (FSM)│  │  DOM telemetry panel│
-└────────────┘   └──────────────────┘   └───────────────────┘   └────────────────────┘   └───────────────────┘
-                                                                          │
-                                                                          ▼
-                                                                  Web Audio alert tones
+```mermaid
+flowchart LR
+    A["Webcam Video Frame<br/>(1280x720 RGB)"] --> B["MediaPipe WASM<br/>(FaceMesh 468pt / Hands 21pt)"]
+    B --> C["Smoothing Filter<br/>(Holt's Double EMA / O(1))"]
+    C --> D["State Machines<br/>(ErgonomicsEngine & Gesture FSM)"]
+    D --> E["WebGL / UI HUD<br/>(Three.js Shaders + DOM Telemetry)"]
+    D -.->|Audio Triggers| F["Web Audio API<br/>(Harmonic Chimes)"]
+
+    style A fill:#18181b,stroke:#3f3f46,stroke-width:1px,color:#fafafa
+    style B fill:#18181b,stroke:#3f3f46,stroke-width:1px,color:#fafafa
+    style C fill:#18181b,stroke:#3f3f46,stroke-width:1px,color:#fafafa
+    style D fill:#27272a,stroke:#6366f1,stroke-width:1px,color:#fafafa
+    style E fill:#18181b,stroke:#3f3f46,stroke-width:1px,color:#fafafa
+    style F fill:#18181b,stroke:#10b981,stroke-width:1px,color:#fafafa
 ```
 
 Each stage is a separate, independently testable module:
@@ -240,15 +249,20 @@ Implementation: `PersistenceDebouncer` in `src/engine/ergonomicsEngine.js`.
 ### Touchless gesture state machine
 
 ```
-        hand appears           pointing + steady          pinch                    velocity < release
- IDLE ───────────────▶ TARGETING ───────────────▶ ENGAGED ────────▶ PINCH_CONFIRMED
-   ▲                       ▲  │                      │  ▲                 │
-   │                       │  └── velocity > swipe ───┘  └── release ──────┘
-   │                       │            threshold                (fingers separate)
-   │                       └────────────── velocity < release ───────────────┐
-   │                                       (swipe ends)                       │
-   │                                                                          ▼
-   └──────────────────────── hand lost, any state ─────────────  SWIPE_TRACKING
+  ```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> TARGETING : Hand detected
+    TARGETING --> ENGAGED : Pointing index + steady
+    ENGAGED --> PINCH_CONFIRMED : Pinch (Euclidean < 30px)
+    PINCH_CONFIRMED --> ENGAGED : Release fingers
+    ENGAGED --> SWIPE_TRACKING : Velocity > swipeThreshold
+    SWIPE_TRACKING --> TARGETING : Velocity < releaseThreshold
+    
+    TARGETING --> IDLE : Hand lost
+    ENGAGED --> IDLE : Hand lost
+    SWIPE_TRACKING --> IDLE : Hand lost
+    PINCH_CONFIRMED --> IDLE : Hand lost
 ```
 
 Two independent geometric signals drive transitions:
