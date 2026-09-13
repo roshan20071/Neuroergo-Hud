@@ -250,7 +250,6 @@ Implementation: `PersistenceDebouncer` in `src/engine/ergonomicsEngine.js`.
 ### Touchless gesture state machine
 
 ```
-  ```mermaid
 stateDiagram-v2
     [*] --> IDLE
     IDLE --> TARGETING : Hand detected
