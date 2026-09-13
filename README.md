@@ -4,6 +4,7 @@
 ![Unit Tests](https://img.shields.io/badge/Tests-91%20Passing%20%7C%20Vitest-success.svg)
 ![Privacy](https://img.shields.io/badge/Privacy-100%25%20On--Device-success.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
 **Real-Time Biometric Ergonomics & Touchless Accessibility Engine**
 
 NeuroErgo HUD is a browser-based application that watches a user's face and
