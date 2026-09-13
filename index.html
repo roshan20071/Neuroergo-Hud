@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroErgo HUD — Biometric Ergonomics & Touchless Control</title>
+    <meta
+      name="description"
+      content="Real-time, on-device webcam ergonomics and touchless accessibility engine: posture, fatigue, and screen-distance monitoring with gesture-controlled navigation."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body class="font-display">
+    <div class="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-6 py-6">
+      <!-- Header ------------------------------------------------------- -->
+      <header class="flex items-center justify-between border-b border-line pb-4">
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight text-text">
+            NeuroErgo <span class="text-accent text-glow">HUD</span>
+          </h1>
+          <p class="mt-1 text-sm text-muted">Biometric ergonomics &amp; touchless accessibility engine</p>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <!-- 20-20-20 Eye Strain Break Timer -->
+          <button
+            id="break-timer-badge"
+            class="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-mono transition-colors hover:border-accent/60"
+            title="20-20-20 Eye Strain Break Timer. Click to toggle 20-second test demo mode."
+          >
+            <span class="text-accent text-sm">👁️</span>
+            <span id="break-timer-text" class="text-text font-medium">Break in 20:00</span>
+            <span id="break-demo-tag" class="hidden rounded bg-accent/20 px-1 py-0.5 text-[9px] font-bold text-accent">DEMO</span>
+          </button>
+
+          <!-- Status Badge -->
+          <div class="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-sm">
+            <span class="h-2 w-2 rounded-full bg-muted" id="status-dot"></span>
+            <span id="status-text" class="text-muted">Idle</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Mode Switcher Navigation -->
+      <nav class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel p-2 shadow-sm" aria-label="Workflow Modes">
+        <div class="flex flex-wrap items-center gap-1.5" role="tablist">
+          <button id="tab-pro-hud" class="mode-tab mode-tab-active" role="tab" aria-selected="true" data-mode="PRO_HUD">
+            <span class="text-accent">🎮</span> Pro Cyber HUD
+          </button>
+          <button id="tab-simple-wellness" class="mode-tab" role="tab" aria-selected="false" data-mode="SIMPLE_WELLNESS">
+            <span class="text-emerald-400">🌱</span> Simple Wellness
+          </button>
+          <button id="tab-bedside-aac" class="mode-tab" role="tab" aria-selected="false" data-mode="HOSPITAL_AAC">
+            <span class="text-cyan-400">🏥</span> Hospital Bedside AAC
+          </button>
+          <button id="tab-physical-therapy" class="mode-tab" role="tab" aria-selected="false" data-mode="PHYSICAL_THERAPY">
+            <span class="text-amber-400">🩺</span> Physical Therapy (ROM)
+          </button>
+        </div>
+        <div class="flex items-center gap-2 pr-2 text-xs text-muted">
+          <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="font-mono text-[11px]">100% On-Device · Zero Cloud · HIPAA Ready</span>
+        </div>
+      </nav>
+
+      <!-- Main stage ----------------------------------------------------- -->
+      <main class="grid flex-1 grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] items-start">
+        <!-- Video + HUD overlay -->
+        <section class="relative overflow-hidden rounded-lg border border-line bg-panel shadow-glow self-start">
+          <div class="relative aspect-video w-full bg-black">
+            <video
+              id="camera-feed"
+              class="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+              autoplay
+              muted
+              playsinline
+            ></video>
+            <canvas id="hud-canvas" class="absolute inset-0 h-full w-full -scale-x-100"></canvas>
+
+            <!-- Recording Badge (Top Left) -->
+            <div
+              id="recording-badge"
+              class="hidden absolute top-3 left-3 z-10 flex items-center gap-2 rounded-full border border-danger/60 bg-black/75 px-3 py-1 text-xs font-mono text-danger shadow-[0_0_12px_rgba(255,77,109,0.3)] backdrop-blur-sm"
+            >
+              <span class="relative flex h-2 w-2">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-75"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-danger"></span>
+              </span>
+              <span id="rec-status-text" class="font-semibold tracking-wide">REC 00:00</span>
+              <span id="rec-sample-count" class="text-muted text-[10px]">· 0 samples</span>
+            </div>
+
+            <!-- Live FPS / Status pill (Top Right) -->
+            <div
+              id="live-pill"
+              class="hidden absolute top-3 right-3 z-10 flex items-center gap-2 rounded-full border border-line bg-black/60 px-2.5 py-1 text-xs font-mono text-muted backdrop-blur-sm"
+            >
+              <span class="h-1.5 w-1.5 rounded-full bg-accent animate-pulse"></span>
+              <span id="live-fps">LIVE · -- FPS</span>
+            </div>
+
+            <!-- On-Stage Live Telemetry Bar (Bottom) -->
+            <div
+              id="stage-telemetry-bar"
+              class="hidden absolute inset-x-3 bottom-3 z-10 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line/80 bg-panel/90 px-3.5 py-2 text-xs font-mono text-text shadow-lg backdrop-blur-md"
+            >
+              <div class="flex items-center gap-1.5">
+                <span class="text-muted">EAR:</span>
+                <span id="hud-ear" class="text-accent font-semibold">—</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-muted">BLINK:</span>
+                <span id="hud-blink" class="text-accent font-semibold">0 (0/m)</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-muted">DIST:</span>
+                <span id="hud-distance" class="text-accent font-semibold">—</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-muted">POSE:</span>
+                <span id="hud-pose" class="text-accent font-semibold">—</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-muted">GESTURE:</span>
+                <span id="hud-gesture" class="text-accent font-semibold">IDLE</span>
+              </div>
+            </div>
+
+            <div
+              id="alert-banner"
+              class="hidden absolute inset-x-0 top-0 z-20 border-b border-danger/40 bg-danger/15 px-4 py-2 text-center text-sm font-medium text-danger backdrop-blur-sm"
+              role="alert"
+            ></div>
+
+            <div
+              id="video-placeholder"
+              class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted"
+            >
+              Camera feed will appear here once tracking starts.
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Stage: Multi-Mode Panels -->
+        <aside class="flex flex-col gap-4">
+          <!-- Panel 1: Pro Cyber HUD (Default) -->
+          <div id="panel-pro-hud" class="flex flex-col gap-4">
+            <div class="rounded-lg border border-line bg-panel p-4">
+              <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-medium text-muted">Telemetry</h2>
+                <span id="telemetry-live-dot" class="hidden h-2 w-2 rounded-full bg-accent animate-pulse" title="Telemetry live stream active"></span>
+              </div>
+              <div>
+                <div class="stat-row">
+                  <span class="stat-label">Eye aspect ratio</span>
+                  <span class="stat-value" id="stat-ear">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Blink count</span>
+                  <span class="stat-value font-semibold text-accent" id="stat-blink-count">0</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Blink rate</span>
+                  <span class="stat-value" id="stat-blink">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Screen distance</span>
+                  <span class="stat-value" id="stat-distance">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Head pose</span>
+                  <span class="stat-value" id="stat-pose">—</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Posture stability</span>
+                  <span class="stat-value font-semibold text-accent" id="stat-stability">100%</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Gesture state</span>
+                  <span class="stat-value" id="stat-gesture">—</span>
+                </div>
+              </div>
+
+              <!-- Posture Tare / Baseline Control -->
+              <div class="mt-3 flex items-center justify-between border-t border-line/60 pt-2.5 text-xs font-mono">
+                <div class="flex items-center gap-1.5 text-muted">
+                  <span>Baseline:</span>
+                  <span id="stat-baseline-tag" class="text-text font-semibold">0° (Camera Axis)</span>
+                </div>
+                <div class="flex gap-1.5">
+                  <button
+                    id="btn-tare-posture"
+                    class="hud-button text-xs py-1 px-2.5 text-accent border-accent/40 hover:bg-accent/10"
+                    title="Zero posture angles based on your current comfortable seated position"
+                  >
+                    Tare Posture
+                  </button>
+                  <button
+                    id="btn-reset-posture"
+                    class="hud-button hidden text-xs py-1 px-2 text-muted hover:text-danger"
+                    title="Reset posture baseline back to default"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Real-time Dynamics Card (Sparklines) -->
+            <div class="rounded-lg border border-line bg-panel p-4">
+              <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-sm font-medium text-muted">Real-time Dynamics</h2>
+                <span class="text-[10px] font-mono text-muted">Live 20s window</span>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <div class="mb-1 flex items-center justify-between text-[11px] font-mono text-muted">
+                    <span>EAR Waveform (Blinks)</span>
+                    <span class="text-[10px] text-danger/80">-- threshold</span>
+                  </div>
+                  <canvas id="ear-sparkline" width="280" height="44" class="h-11 w-full rounded border border-line/50 bg-black/40"></canvas>
+                </div>
+                <div>
+                  <div class="mb-1 flex items-center justify-between text-[11px] font-mono text-muted">
+                    <span>Distance Trend</span>
+                    <span class="text-[10px] text-accent/80">Optimal 45–75cm</span>
+                  </div>
+                  <canvas id="dist-sparkline" width="280" height="44" class="h-11 w-full rounded border border-line/50 bg-black/40"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Session Summary & Download Card -->
+            <div id="session-summary-card" class="hidden rounded-lg border border-line bg-panel p-4">
+              <h2 class="mb-2 text-sm font-medium text-muted">Last recorded session</h2>
+              <div class="space-y-1.5 text-xs font-mono text-muted">
+                <div class="flex justify-between">
+                  <span>Duration:</span>
+                  <span id="rec-sum-duration" class="text-text font-bold">—</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Samples logged:</span>
+                  <span id="rec-sum-samples" class="text-text font-bold">—</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Total blinks:</span>
+                  <span id="rec-sum-blinks" class="text-accent font-bold">0</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Avg Eye Ratio:</span>
+                  <span id="rec-sum-ear" class="text-text font-bold">—</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Avg Distance:</span>
+                  <span id="rec-sum-dist" class="text-text font-bold">—</span>
+                </div>
+              </div>
+              <div class="mt-3 flex gap-2">
+                <button id="btn-download-csv" class="hud-button text-xs py-1 px-2.5 w-full">Export CSV</button>
+                <button id="btn-download-json" class="hud-button text-xs py-1 px-2.5 w-full">Export JSON</button>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-line bg-panel p-4 text-sm text-muted">
+              <p>
+                All inference runs on-device in WebAssembly. No video frame is ever uploaded — landmark
+                coordinates never leave the browser tab.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-line bg-panel p-4 text-sm text-muted">
+              <h2 class="mb-2 text-sm font-medium text-muted">Touchless gestures</h2>
+              <ul class="space-y-1.5">
+                <li><span class="stat-value text-text">Point + hold</span> — engage cursor (or dwell 1.2s to auto-click)</li>
+                <li><span class="stat-value text-text">Pinch</span> — confirm / click</li>
+                <li><span class="stat-value text-text">Swipe</span> — navigate left / right / up / down</li>
+                <li><span class="stat-value text-text">Open palm, hold</span> — toggle alert mute</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Panel 2: Simple Wellness Mode -->
+          <div id="panel-simple-wellness" class="hidden flex flex-col gap-4">
+            <!-- Health Scorecard -->
+            <div class="rounded-xl border border-line bg-panel p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-xs font-mono text-muted uppercase tracking-wider">Ergonomic Health</span>
+                  <h3 id="wellness-status-headline" class="text-lg font-bold text-text mt-0.5">Upright &amp; Balanced</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div id="wellness-grade-badge" class="flex h-12 w-12 items-center justify-center rounded-xl border border-accent/60 bg-accent/15 text-2xl font-black font-mono text-accent shadow-[0_0_15px_rgba(57,240,192,0.3)]">
+                    A+
+                  </div>
+                </div>
+              </div>
+
+              <!-- Session Stats -->
+              <div class="mt-4 grid grid-cols-3 gap-2 border-t border-line/60 pt-3 text-center text-xs font-mono">
+                <div>
+                  <div class="text-muted text-[10px]">SCORE</div>
+                  <div id="wellness-score-num" class="text-base font-bold text-accent">100</div>
+                </div>
+                <div>
+                  <div class="text-muted text-[10px]">ACTIVE TIME</div>
+                  <div id="wellness-time-num" class="text-base font-bold text-text">0m</div>
+                </div>
+                <div>
+                  <div class="text-muted text-[10px]">UPRIGHT</div>
+                  <div id="wellness-posture-pct" class="text-base font-bold text-emerald-400">100%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Friendly Advice Cards -->
+            <div class="space-y-3">
+              <!-- Posture Card -->
+              <div id="wellness-posture-card" class="wellness-card flex items-start gap-3">
+                <span id="wellness-posture-icon" class="text-2xl mt-0.5">✨</span>
+                <div>
+                  <h4 id="wellness-posture-title" class="text-xs font-semibold text-text">Upright &amp; Balanced</h4>
+                  <p id="wellness-posture-tip" class="text-[11px] text-muted mt-0.5">Your cervical spine and head are nicely centered.</p>
+                </div>
+              </div>
+
+              <!-- Eye Comfort Card -->
+              <div id="wellness-eyes-card" class="wellness-card flex items-start gap-3">
+                <span id="wellness-eyes-icon" class="text-2xl mt-0.5">💧</span>
+                <div>
+                  <h4 id="wellness-eyes-title" class="text-xs font-semibold text-text">Eye Comfort Normal</h4>
+                  <p id="wellness-eyes-tip" class="text-[11px] text-muted mt-0.5">Blink frequency is keeping your eyes hydrated.</p>
+                </div>
+              </div>
+
+              <!-- Screen Distance Card -->
+              <div id="wellness-distance-card" class="wellness-card flex items-start gap-3">
+                <span id="wellness-distance-icon" class="text-2xl mt-0.5">📏</span>
+                <div>
+                  <h4 id="wellness-distance-title" class="text-xs font-semibold text-text">Optimal Screen Distance</h4>
+                  <p id="wellness-distance-tip" class="text-[11px] text-muted mt-0.5">Sitting in the healthy 45–75cm ergonomic corridor.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Report Export Actions -->
+            <div class="flex gap-2">
+              <button id="btn-download-wellness-report" class="hud-button text-xs py-2 flex-1 flex items-center justify-center gap-1 text-text" title="Download formatted ASCII text summary">
+                <span>📄</span> Text
+              </button>
+              <button id="btn-download-wellness-json" class="hud-button text-xs py-2 flex-1 flex items-center justify-center gap-1 text-text" title="Download structured JSON telemetry dataset">
+                <span>📊</span> JSON
+              </button>
+              <button id="btn-print-wellness-report" class="hud-button-primary text-xs py-2 flex-1 flex items-center justify-center gap-1" title="Printable HTML & PDF report">
+                <span>🖨️</span> PDF / Print
+              </button>
+            </div>
+          </div>
+
+          <!-- Panel 3: Hospital Bedside AAC Board -->
+          <div id="panel-bedside-aac" class="hidden flex flex-col gap-3">
+            <!-- Nurse announcement banner -->
+            <div id="aac-announcement-banner" class="rounded-xl border-2 border-accent/60 bg-accent/10 p-3.5 shadow-[0_0_18px_rgba(57,240,192,0.25)] text-center">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-accent font-semibold block mb-0.5">Active Bedside Request</span>
+              <div id="aac-announcement-text" class="text-sm font-bold text-text">Tilt head to highlight · Hold gaze or long-blink to select</div>
+            </div>
+
+            <!-- 3x3 Pictogram Grid -->
+            <div id="aac-grid" class="grid grid-cols-3 gap-2 select-none">
+              <!-- Cards 0..8 rendered with high contrast -->
+              <div class="aac-tile" data-index="0">
+                <span class="text-3xl">💧</span>
+                <span class="text-xs font-bold text-text">Water</span>
+                <span class="text-[9px] text-muted font-mono">Top Left</span>
+              </div>
+              <div class="aac-tile" data-index="1">
+                <span class="text-3xl">💊</span>
+                <span class="text-xs font-bold text-text">Pain</span>
+                <span class="text-[9px] text-muted font-mono">Top Center</span>
+              </div>
+              <div class="aac-tile border-danger/60 bg-danger/10" data-index="2">
+                <span class="text-3xl">🛎️</span>
+                <span class="text-xs font-bold text-danger">Call Nurse</span>
+                <span class="text-[9px] text-danger/80 font-mono">Top Right</span>
+              </div>
+              <div class="aac-tile" data-index="3">
+                <span class="text-3xl">🛏️</span>
+                <span class="text-xs font-bold text-text">Adjust Bed</span>
+                <span class="text-[9px] text-muted font-mono">Mid Left</span>
+              </div>
+              <div class="aac-tile aac-tile-active" data-index="4">
+                <span class="text-3xl">❄️</span>
+                <span class="text-xs font-bold text-text">Cold / Blanket</span>
+                <span class="text-[9px] text-muted font-mono">Center</span>
+              </div>
+              <div class="aac-tile" data-index="5">
+                <span class="text-3xl">🌡️</span>
+                <span class="text-xs font-bold text-text">Too Warm</span>
+                <span class="text-[9px] text-muted font-mono">Mid Right</span>
+              </div>
+              <div class="aac-tile" data-index="6">
+                <span class="text-3xl">🚻</span>
+                <span class="text-xs font-bold text-text">Restroom</span>
+                <span class="text-[9px] text-muted font-mono">Btm Left</span>
+              </div>
+              <div class="aac-tile border-emerald-500/50 bg-emerald-500/10" data-index="7">
+                <span class="text-3xl">✅</span>
+                <span class="text-xs font-bold text-emerald-400">Yes</span>
+                <span class="text-[9px] text-muted font-mono">Btm Center</span>
+              </div>
+              <div class="aac-tile border-rose-500/50 bg-rose-500/10" data-index="8">
+                <span class="text-3xl">❌</span>
+                <span class="text-xs font-bold text-rose-400">No</span>
+                <span class="text-[9px] text-muted font-mono">Btm Right</span>
+              </div>
+            </div>
+
+            <!-- Clinical Bedside Controls -->
+            <div class="flex items-center justify-between border-t border-line pt-2 gap-2">
+              <button id="btn-aac-emergency-nurse" class="hud-button-record text-xs py-1.5 px-3 flex-1 flex items-center justify-center gap-1.5 font-bold">
+                <span>🚨</span> Call Nurse
+              </button>
+              <button id="btn-aac-test-speech" class="hud-button text-xs py-1.5 px-3 flex-1 text-muted">
+                🔊 Test Audio Voice
+              </button>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-muted font-mono px-1">
+              <span>Selection: 1.4s Dwell or 1s Blink</span>
+              <span class="text-accent">Voice Synth: Active</span>
+            </div>
+          </div>
+
+          <!-- Panel 4: Physical Therapy ROM Assessment -->
+          <div id="panel-physical-therapy" class="hidden flex flex-col gap-4">
+            <!-- Guided Wizard Step Card -->
+            <div class="rounded-xl border border-line bg-panel p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span id="rom-step-badge" class="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-mono text-amber-300 font-semibold">
+                  Step 1 of 5 · Baseline Calibration
+                </span>
+                <span class="text-[10px] font-mono text-muted">Clinical Protocol</span>
+              </div>
+
+              <div>
+                <h3 id="rom-step-title" class="text-sm font-bold text-text">Baseline Calibration</h3>
+                <p id="rom-step-instruction" class="text-xs text-muted mt-1 leading-relaxed">
+                  Sit comfortably upright, looking directly at the camera at eye level.
+                </p>
+              </div>
+
+              <!-- Live Angle Gauge -->
+              <div class="grid grid-cols-3 gap-2 rounded-lg border border-line/70 bg-panel2 p-2.5 text-center font-mono">
+                <div>
+                  <div class="text-[10px] text-muted">YAW (ROT)</div>
+                  <div id="rom-live-yaw" class="text-sm font-bold text-accent">0°</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-muted">PITCH (F/E)</div>
+                  <div id="rom-live-pitch" class="text-sm font-bold text-accent">0°</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-muted">ROLL (LAT)</div>
+                  <div id="rom-live-roll" class="text-sm font-bold text-accent">0°</div>
+                </div>
+              </div>
+
+              <button id="btn-rom-action" class="hud-button-primary w-full text-xs py-2 font-semibold">
+                Tare Neutral Baseline
+              </button>
+            </div>
+
+            <!-- Peak Measurements Card -->
+            <div class="rounded-xl border border-line bg-panel p-4 space-y-2.5">
+              <h4 class="text-xs font-semibold text-muted uppercase tracking-wider font-mono">Peak Active ROM</h4>
+              <div class="space-y-1.5 text-xs font-mono">
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Left Cervical Rotation:</span>
+                  <span id="rom-peak-left-yaw" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 70–90°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Right Cervical Rotation:</span>
+                  <span id="rom-peak-right-yaw" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 70–90°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Left Lateral Flexion:</span>
+                  <span id="rom-peak-left-roll" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 40–45°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Right Lateral Flexion:</span>
+                  <span id="rom-peak-right-roll" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 40–45°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Cervical Flexion (Down):</span>
+                  <span id="rom-peak-flexion" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 45–60°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Cervical Extension (Up):</span>
+                  <span id="rom-peak-extension" class="text-text font-bold">0° <span class="text-[10px] text-muted">(Norm: 50–70°)</span></span>
+                </div>
+                <div class="flex justify-between border-b border-line/40 pb-1">
+                  <span class="text-muted">Rotation Symmetry:</span>
+                  <span id="rom-symmetry-score" class="text-accent font-bold">100%</span>
+                </div>
+                <div class="flex justify-between pt-1">
+                  <span class="text-muted">Lateral Symmetry:</span>
+                  <span id="rom-lateral-symmetry-score" class="text-accent font-bold">100%</span>
+                </div>
+              </div>
+
+              <div class="pt-2 flex gap-2">
+                <button id="btn-rom-reset" class="hud-button text-xs py-1.5 px-3 text-muted">Restart</button>
+                <button id="btn-rom-download-report" class="hud-button text-xs py-1.5 px-3 flex-1 text-text">
+                  📄 Export Clinical Report
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <!-- Controls --------------------------------------------------------- -->
+      <footer class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+        <button id="btn-start" class="hud-button-primary">Start tracking</button>
+        <button id="btn-stop" class="hud-button" disabled>Stop</button>
+        <button id="btn-record" class="hud-button-record">Record session</button>
+        <button id="btn-calibrate" class="hud-button" disabled>Calibrate distance</button>
+        <button id="btn-privacy" class="hud-button" aria-pressed="false" title="Blur webcam video while keeping neon HUD reticles active">Privacy mode</button>
+        <button id="btn-mute" class="hud-button" aria-pressed="false">Mute alerts</button>
+
+        <div class="flex items-center gap-2">
+          <label for="camera-select" class="text-xs text-muted">Camera:</label>
+          <select
+            id="camera-select"
+            class="hud-button text-xs py-1.5 px-2.5 max-w-[220px] truncate"
+            title="Select camera device"
+          >
+            <option value="">Laptop Camera (Default)</option>
+          </select>
+        </div>
+
+        <span class="ml-auto text-xs text-muted">Chrome, Edge, or Firefox recommended</span>
+      </footer>
+
+    </div>
+
+    <!-- Virtual Touchless Cursor with Dwell Countdown Ring -->
+    <div
+      id="virtual-cursor"
+      class="pointer-events-none fixed z-50 hidden -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
+      style="left: 0px; top: 0px;"
+    >
+      <div class="relative flex items-center justify-center">
+        <!-- Circular Dwell Countdown Ring (for tremor-friendly hands-free clicking) -->
+        <svg id="cursor-dwell-svg" class="absolute -inset-1 h-10 w-10 -rotate-90 hidden" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="16" class="stroke-accent fill-transparent transition-all duration-75" stroke-width="2.5" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round" />
+        </svg>
+        <div id="cursor-ring" class="h-8 w-8 rounded-full border-2 border-accent/80 bg-accent/20 backdrop-blur-xs transition-all duration-150"></div>
+        <div id="cursor-dot" class="absolute h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_#39F0C0]"></div>
+        <div id="cursor-badge" class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-1.5 py-0.5 text-[9px] font-mono text-accent">TARGETING</div>
+      </div>
+    </div>
+
+    <!-- Distance Calibration Modal -->
+    <div id="calibration-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div class="w-full max-w-md rounded-xl border border-line bg-panel p-6 shadow-2xl space-y-5">
+        <div class="flex items-center justify-between border-b border-line pb-3">
+          <h3 class="text-base font-semibold text-text flex items-center gap-2">
+            <span class="text-accent">📐</span> Distance Calibration
+          </h3>
+          <button id="cal-modal-close" class="text-muted hover:text-text text-xl p-1 leading-none">&times;</button>
+        </div>
+
+        <p class="text-xs text-muted leading-relaxed">
+          Calibrating calculates your webcam's exact focal length from your pupil distance (IPD). Sit comfortably upright at your normal working distance.
+        </p>
+
+        <!-- Live detection status -->
+        <div class="flex items-center justify-between rounded-lg border border-line/80 bg-panel2 p-3 text-xs font-mono">
+          <span class="text-muted">Pupil IPD:</span>
+          <span id="cal-live-ipd" class="font-semibold text-warn">Align face in camera…</span>
+        </div>
+
+        <!-- Preset distance buttons -->
+        <div>
+          <label class="block text-xs font-medium text-muted mb-2">Select your current distance from screen:</label>
+          <div class="grid grid-cols-4 gap-2">
+            <button type="button" class="cal-preset-btn hud-button text-xs py-2 px-1 text-center" data-cm="45">45 cm<br><span class="text-[9px] text-muted">Laptop</span></button>
+            <button type="button" class="cal-preset-btn hud-button cal-preset-active text-xs py-2 px-1 text-center" data-cm="55">55 cm<br><span class="text-[9px] text-muted">Desk</span></button>
+            <button type="button" class="cal-preset-btn hud-button text-xs py-2 px-1 text-center" data-cm="65">65 cm<br><span class="text-[9px] text-muted">Monitor</span></button>
+            <button type="button" class="cal-preset-btn hud-button text-xs py-2 px-1 text-center" data-cm="75">75 cm<br><span class="text-[9px] text-muted">Deep Desk</span></button>
+          </div>
+        </div>
+
+        <!-- Custom distance input -->
+        <div class="flex items-center gap-2">
+          <label for="cal-custom-cm" class="text-xs text-muted whitespace-nowrap">Or custom distance:</label>
+          <input
+            type="number"
+            id="cal-custom-cm"
+            min="30"
+            max="120"
+            value="55"
+            class="w-24 rounded border border-line bg-ink px-2 py-1 text-xs font-mono text-text text-center focus:border-accent focus:outline-none"
+          />
+          <span class="text-xs text-muted font-mono">cm</span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-between border-t border-line pt-4 gap-3">
+          <button id="cal-btn-reset" class="hud-button text-xs py-1.5 px-3 text-muted hover:text-danger">Reset Default</button>
+          <div class="flex gap-2">
+            <button id="cal-btn-cancel" class="hud-button text-xs py-1.5 px-3">Cancel</button>
+            <button id="cal-btn-apply" class="hud-button-primary text-xs py-1.5 px-4 font-semibold">Calibrate &amp; Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20-20-20 Ergonomic Rest Modal -->
+    <div id="break-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+      <div class="w-full max-w-sm rounded-2xl border border-accent/40 bg-panel p-6 shadow-[0_0_50px_rgba(57,240,192,0.2)] text-center space-y-5">
+        <div class="flex flex-col items-center justify-center">
+          <div class="relative flex items-center justify-center my-3">
+            <!-- Circular countdown ring -->
+            <svg class="h-28 w-28 -rotate-90 transform" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" class="stroke-line/50 fill-transparent" stroke-width="6" />
+              <circle
+                id="break-countdown-circle"
+                cx="50"
+                cy="50"
+                r="42"
+                class="stroke-accent fill-transparent transition-all duration-300"
+                stroke-width="6"
+                stroke-dasharray="264"
+                stroke-dashoffset="0"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span id="break-countdown-number" class="absolute text-2xl font-bold font-mono text-accent">20s</span>
+          </div>
+
+          <h3 class="text-lg font-bold tracking-tight text-text">20-20-20 Eye Rest</h3>
+          <p class="mt-2 text-xs text-muted leading-relaxed max-w-xs">
+            Look away from all screens at an object at least <strong class="text-text">20 feet (6 meters)</strong> away to relax your ciliary eye muscles.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-center gap-3 border-t border-line/60 pt-4">
+          <button id="break-btn-skip" class="hud-button text-xs py-1.5 px-4 text-muted">Snooze 5m</button>
+          <button id="break-btn-complete" class="hud-button-primary text-xs py-1.5 px-5 font-semibold">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Isolated iframe for MediaPipe Hands to prevent Emscripten global variable collision with FaceMesh -->
+    <iframe id="hand-worker-frame" src="/hand-isolator.html" style="display:none;" title="Hands Worker"></iframe>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+

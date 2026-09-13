@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-ink text-text;
+    height: 100%;
+  }
+
+  ::selection {
+    @apply bg-accent/30 text-text;
+  }
+}
+
+@layer components {
+  /* A single stat row inside the telemetry panel: label left, monospace
+     value right. Used repeatedly, so it earns a component class rather than
+     repeating the utility list on every row. */
+  .stat-row {
+    @apply flex items-baseline justify-between border-b border-line/60 py-2.5 text-sm last:border-b-0;
+  }
+  .stat-label {
+    @apply text-muted;
+  }
+  .stat-value {
+    @apply font-mono text-text tabular-nums;
+  }
+
+  .hud-button {
+    @apply rounded-md border border-line bg-panel2 px-4 py-2 text-sm text-text transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-text;
+  }
+  .hud-button-primary {
+    @apply hud-button border-accent/70 bg-accent/10 text-accent hover:bg-accent/20;
+  }
+  .hud-button-record {
+    @apply hud-button border-danger/60 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20 disabled:hover:border-line disabled:hover:text-text;
+  }
+  .hud-button-recording {
+    @apply hud-button border-danger bg-danger/30 text-white shadow-[0_0_14px_rgba(255,77,109,0.45)];
+  }
+  .hud-button-active {
+    @apply hud-button border-accent bg-accent/25 text-accent shadow-[0_0_12px_rgba(57,240,192,0.35)];
+  }
+  .cal-preset-active {
+    @apply border-accent bg-accent/20 text-accent font-semibold shadow-[0_0_8px_rgba(57,240,192,0.4)];
+  }
+
+  /* Mode Switcher Tabs */
+  .mode-tab {
+    @apply flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted transition-all hover:bg-panel2 hover:text-text;
+  }
+  .mode-tab-active {
+    @apply border border-line bg-panel2 font-semibold text-text shadow-sm;
+  }
+
+  /* Hospital AAC Pictogram Tiles */
+  .aac-tile {
+    @apply relative flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-panel2 p-3 text-center transition-all duration-150 cursor-pointer select-none hover:border-line/80 active:scale-95;
+  }
+  .aac-tile-active {
+    @apply border-2 border-accent bg-accent/15 shadow-[0_0_20px_rgba(57,240,192,0.35)] scale-[1.02];
+  }
+
+  /* Friendly Wellness Cards */
+  .wellness-card {
+    @apply rounded-xl border border-line bg-panel p-3.5 transition-all;
+  }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 12px rgba(57, 240, 192, 0.55);
+  }
+  .text-glow-danger {
+    text-shadow: 0 0 12px rgba(255, 77, 109, 0.65);
+  }
+  .video-privacy {
+    filter: blur(14px) brightness(0.38) contrast(1.25);
+    transition: filter 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

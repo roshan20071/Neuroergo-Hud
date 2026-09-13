@@ -1,0 +1,31 @@
+{
+  "name": "neuroergo-hud",
+  "version": "1.0.0",
+  "description": "Real-time biometric ergonomics and touchless accessibility engine: webcam-based posture, fatigue, and screen-distance monitoring with a touchless gesture-controlled HUD, built on MediaPipe and Three.js.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "node scripts/benchmark.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/face_mesh": "^0.4.1633559619",
+    "@mediapipe/hands": "^0.4.1675469240",
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.4.2",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Isolated Hands Engine</title>
+  </head>
+  <body>
+    <!-- Load MediaPipe Hands UMD directly from local assets -->
+    <script src="/mediapipe/hands/hands.js"></script>
+    <script>
+      let hands = null;
+      let isProcessing = false;
+
+      function initHands() {
+        try {
+          if (!window.Hands) {
+            console.error('[Hands Isolator] window.Hands not defined by /mediapipe/hands/hands.js');
+            return;
+          }
+
+          hands = new window.Hands({
+            locateFile: (file) => `/mediapipe/hands/${file}`,
+          });
+
+          hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+
+          hands.onResults((results) => {
+            const landmarks = results.multiHandLandmarks?.[0] ?? null;
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'HAND_RESULTS', landmarks }, '*');
+            }
+          });
+
+          hands.initialize()
+            .then(() => {
+              console.log('[Hands Isolator] MediaPipe Hands initialized successfully');
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'HAND_READY' }, '*');
+              }
+            })
+            .catch((err) => {
+              console.warn('[Hands Isolator] Initialization error:', err);
+            });
+        } catch (err) {
+          console.warn('[Hands Isolator] Setup error:', err);
+        }
+      }
+
+      window.addEventListener('message', async (event) => {
+        if (!event.data) return;
+        if (event.data.type === 'PROCESS_FRAME' && event.data.imageBitmap) {
+          const bitmap = event.data.imageBitmap;
+          if (!hands) {
+            if (bitmap.close) bitmap.close();
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'HAND_RESULTS', landmarks: null }, '*');
+            }
+            return;
+          }
+
+          if (isProcessing) {
+            if (bitmap.close) bitmap.close();
+            return;
+          }
+
+          isProcessing = true;
+          try {
+            await hands.send({ image: bitmap });
+          } catch (err) {
+            console.warn('[Hands Isolator] Inference error:', err);
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'HAND_RESULTS', landmarks: null }, '*');
+            }
+          } finally {
+            if (bitmap.close) bitmap.close();
+            isProcessing = false;
+          }
+        }
+      });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHands);
+      } else {
+        initHands();
+      }
+    </script>
+  </body>
+</html>
